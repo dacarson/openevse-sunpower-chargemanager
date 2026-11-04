@@ -1,0 +1,6 @@
+# HTTP client for OpenEVSE, InfluxDB 1.x (HTTP API) and the PVS6
+requests>=2.31
+# PG&E TOU periods are computed in Pacific time
+pytz>=2024.1
+# PVS6 websocket (pvs6_relay.py only)
+websocket-client>=1.6.0

@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenEVSE TOU policy + InfluxDB logger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/openevse-sunpower-chargemanager
+EnvironmentFile=/etc/default/openevse_manager
+ExecStart=/home/pi/openevse-sunpower-chargemanager/venv/bin/python -u openevse_manager.py $CMDARGS
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+#-----------------------------------------------------------------------------
+# /etc/default/pvs6_relay
+#-----------------------------------------------------------------------------
+# Publishes PVS6 power to InfluxDB (localhost:8086, db 'pvs6') and feeds net_p to
+# the OpenEVSE solar divert as grid_ie every 5 seconds.
+
+CMDARGS="--ip 172.27.153.1 --serial_number $PVS6_SERIAL --influxdb --openevse_host openevse.local --openevse_interval 5"

@@ -1,0 +1,16 @@
+[Unit]
+Description=PVS6 relay: WebSocket stream to InfluxDB and OpenEVSE solar divert (grid_ie)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/openevse-sunpower-chargemanager
+EnvironmentFile=/etc/default/pvs6_relay
+ExecStart=/home/pi/openevse-sunpower-chargemanager/venv/bin/python -u pvs6_relay.py $CMDARGS
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

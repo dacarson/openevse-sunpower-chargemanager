@@ -12,7 +12,7 @@ The old controller did all of the solar-following itself through ChargePoint's c
 
 ## Why the PVS6 drives divert, not the Eagle
 
-The PVS6 websocket updates about every second. The Eagle relays the PG&E meter's Zigbee pushes and has to be polled gently (10–30 s), so its readings are often 10–60 s old by the time they're used. Eco mode reacts to every update, and a lagging feed makes it over- or under-shoot. The PVS6 consumption CTs aren't revenue-grade, but an error of a percent or two is far smaller than OpenEVSE's 1 A (~240 W) step. `openevse_manager.py` logs the difference between the two meters so you can watch for CT drift.
+The PVS6 websocket updates about every second. The Eagle relays the PG&E meter's Zigbee pushes and has to be polled gently (10–30 s), so its readings are often 10–60 s old by the time they're used. Eco mode reacts to every update, and a lagging feed makes it over- or under-shoot. The PVS6 consumption CTs aren't revenue-grade, but an error of a percent or two is far smaller than OpenEVSE's 1 A (~240 W) step. The Eagle data you already log to InfluxDB is the reference for checking CT drift, e.g. by comparing it with `sunpower_power.net_p` in Grafana.
 
 ## What `openevse_manager.py` does
 
@@ -39,7 +39,7 @@ For the firmware math behind these, see the comment block in `openevse_manager.p
 | Measurement | Fields |
 |---|---|
 | `openevse` | `current_a`, `voltage_v`, `power_w`, `pilot_a`, `state`, `state_name`, `fault`, `vehicle`, `manual_override`, `divertmode`, `divert_active`, `charge_rate_a`, `divert_update_s`, `grid_ie_w`, `temp_c`, `session_energy_wh`, `total_energy_kwh`, `total_day/week/month/year_kwh`, fault counters, `wifi_rssi`, … |
-| `openevse_policy` | `tou_period`, `pv_ratio`, `claim`, `reason`, `production_w`, `net_w`, `feed_age_s`, `eagle_net_w`, `meter_diff_w` (PVS6 − Eagle) |
+| `openevse_policy` | `tou_period`, `pv_ratio`, `claim`, `reason`, `production_w`, `net_w`, `feed_age_s` |
 | `solar_charge_control` | Same fields as the old controller, so existing Grafana panels keep working: `excess_solar_watts`, `charging_power_watts`, `target_amperage`, `current_amperage`, `solar_slope_w_per_s` |
 
 The ML shadow logger (`model_shadow_logger.py`, `model_run5`) isn't carried over. It predicted ChargePoint amp decisions for the old controller's policy, and charge decisions are now made by the firmware.
@@ -74,13 +74,6 @@ When editing `/etc/default/pvs6_relay`, carry over the PVS6 IP and `--serial_num
 
 Start `openevse_manager` with `--dry-run` for a day. It logs every decision and writes InfluxDB, but never changes the charger. `--no-control` makes it a pure logger.
 
-To find the Eagle measurement and field names for the cross-check:
-
-```sql
-SHOW MEASUREMENTS ON eagle
-SHOW FIELD KEYS ON eagle FROM "device_<hw_addr>"    -- look for ..._InstantaneousDemand (kW)
-```
-
 ### `openevse_manager.py` options
 
 | Option | Default | |
@@ -88,7 +81,6 @@ SHOW FIELD KEYS ON eagle FROM "device_<hw_addr>"    -- look for ..._Instantaneou
 | `--openevse-host` | required | Hostname or IP |
 | `--openevse-user` / `--openevse-pass` | | Only if web UI auth is enabled |
 | `--influxdb-host/port/user/pass/db` | localhost / 8086 / – / – / pvs6 | |
-| `--eagle-db`, `--eagle-measurement`, `--eagle-field`, `--eagle-scale` | – / – / `Main_InstantaneousDemand` / 1000 | Enables the meter cross-check |
 | `--interval` | 60 | Seconds between loops |
 | `--average-minutes` | 5 | Window for production/net means |
 | `--peak-excess-multiplier` | 2.0 | |

@@ -3,7 +3,6 @@
 #-----------------------------------------------------------------------------
 # TOU policy + logging. Reads sunpower_power from db 'pvs6' and writes the
 # openevse, openevse_policy and solar_charge_control measurements to the same db.
-# Remove the --eagle-* options to skip the PVS6/Eagle meter cross-check.
 # Start with --dry-run to watch decisions in the log before letting it act.
 
-CMDARGS="--openevse-host openevse.local --eagle-db eagle --eagle-measurement device_REPLACE_WITH_EAGLE_HW_ADDR --log-file /home/pi/openevse-sunpower-chargemanager/openevse_manager.log --quiet"
+CMDARGS="--openevse-host openevse.local --log-file /home/pi/openevse-sunpower-chargemanager/openevse_manager.log --quiet"

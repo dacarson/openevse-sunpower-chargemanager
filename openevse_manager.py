@@ -17,8 +17,7 @@ This script runs once a minute and does what the firmware can't:
     stops while in Eco mode, the charger would keep acting on a stale export reading, so
     this script claims the EVSE "disabled" until the feed resumes.
   * Logging: OpenEVSE state to InfluxDB (`openevse`), the policy decision
-    (`openevse_policy`), a PVS6-vs-Eagle meter cross-check, and the legacy
-    `solar_charge_control` measurement so existing Grafana panels keep working.
+    (`openevse_policy`), and the legacy `solar_charge_control` measurement so existing Grafana panels keep working.
 
 Claims are made at the firmware's API priority (500). A manual override from the OpenEVSE
 UI or HomeKit (priority 1000) always wins, so "charge now" needs no special handling here.
@@ -327,10 +326,6 @@ def parse_args(argv=None):
     p.add_argument("--influxdb-pass", default=None)
     p.add_argument("--influxdb-db", default="pvs6", help="DB holding sunpower_power; also written to")
 
-    p.add_argument("--eagle-db", default=None, help="InfluxDB DB written by eagle-exporter (enables cross-check)")
-    p.add_argument("--eagle-measurement", default=None, help="e.g. device_0013500100abcdef")
-    p.add_argument("--eagle-field", default="Main_InstantaneousDemand")
-    p.add_argument("--eagle-scale", type=float, default=1000.0, help="Multiply Eagle value to get W (kW->W)")
 
     p.add_argument("--interval", type=int, default=60, help="Seconds between loops (default 60)")
     p.add_argument("--average-minutes", type=int, default=5, help="Window for production/net means")
@@ -429,7 +424,7 @@ class Manager:
 
         db = self.args.influxdb_db
         avg = self.args.average_minutes
-        production_w = net_w = slope = eagle_w = None
+        production_w = net_w = slope = None
         try:
             pv = mean_field(self.influx, db, "sunpower_power", "pv_p", avg)
             net = mean_field(self.influx, db, "sunpower_power", "net_p", avg)
@@ -438,13 +433,6 @@ class Manager:
             slope = solar_slope_w_per_s(self.influx, db, self.args.slope_window)
         except Exception as e:
             logging.warning("InfluxDB PVS6 query failed: %s", e)
-        if self.args.eagle_db and self.args.eagle_measurement:
-            try:
-                e = mean_field(self.influx, self.args.eagle_db, self.args.eagle_measurement,
-                               self.args.eagle_field, avg)
-                eagle_w = None if e is None else e * self.args.eagle_scale
-            except Exception as e:
-                logging.warning("InfluxDB Eagle query failed: %s", e)
 
         min_current = float(self.evse_config.get("min_current_hard") or 6)
         max_current = float(self.evse_config.get("max_current_soft") or st.get("max_current") or 32)
@@ -483,10 +471,6 @@ class Manager:
             "net_w": net_w,
             "feed_age_s": None if inp.feed_age_s is None else int(inp.feed_age_s),
         }
-        if eagle_w is not None:
-            policy["eagle_net_w"] = float(eagle_w)
-            if net_w is not None:
-                policy["meter_diff_w"] = float(net_w - eagle_w)  # PVS6 minus Eagle
         points = [("openevse", ev), ("openevse_policy", policy)]
         # Legacy measurement, kept field-compatible with solar_charge_controller.py
         if net_w is not None:

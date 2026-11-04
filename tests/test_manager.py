@@ -200,8 +200,6 @@ class FakeInflux:
             return [{"mean": self.pv_kw}]
         if '"net_p"' in q:
             return [{"mean": self.net_kw}]
-        if "InstantaneousDemand" in q:
-            return [{"mean": self.net_kw + 0.02}]
         return []
 
     def write(self, db, points, ts=None):
@@ -219,8 +217,7 @@ class IntegrationTests(unittest.TestCase):
         self.srv.shutdown()
 
     def manager(self, influx, extra=()):
-        args = m.parse_args(["--openevse-host", self.host, "--eagle-db", "eagle",
-                             "--eagle-measurement", "device_x", *extra])
+        args = m.parse_args(["--openevse-host", self.host, *extra])
         return m.Manager(args, OpenEVSE(self.host), influx)
 
     def test_overnight_claim_then_release(self):
@@ -259,7 +256,9 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn("openevse", names)
         self.assertIn("solar_charge_control", names)
         policy = [p[1] for _, pts in influx.writes for p in pts if p[0] == "openevse_policy"][0]
-        self.assertAlmostEqual(policy["meter_diff_w"], -20.0, places=3)
+        self.assertNotIn("meter_diff_w", policy)
+        self.assertNotIn("eagle_net_w", policy)
+        self.assertEqual(policy["net_w"], 300.0)
 
     def test_no_control_never_writes(self):
         influx = FakeInflux(pv_kw=0.0)

@@ -10,10 +10,6 @@ The old controller did all of the solar-following itself through ChargePoint's c
 | **`pvs6_relay.py`** (was `pvs6_ws_logger.py`) | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` every 5 s. This is what drives Eco mode, so **no MQTT broker is needed**. |
 | **`openevse_manager.py`** | Runs once a minute. It handles TOU tuning, overnight charging, a stale-feed failsafe, and logging to InfluxDB. |
 
-## Why the PVS6 drives divert, not the Eagle
-
-The PVS6 websocket updates about every second. The Eagle relays the PG&E meter's Zigbee pushes and has to be polled gently (10–30 s), so its readings are often 10–60 s old by the time they're used. Eco mode reacts to every update, and a lagging feed makes it over- or under-shoot. The PVS6 consumption CTs aren't revenue-grade, but an error of a percent or two is far smaller than OpenEVSE's 1 A (~240 W) step. The Eagle data you already log to InfluxDB is the reference for checking CT drift, e.g. by comparing it with `sunpower_power.net_p` in Grafana.
-
 ## What `openevse_manager.py` does
 
 **TOU tuning of `divert_PV_ratio`** (it writes `/config` only when the TOU period changes):

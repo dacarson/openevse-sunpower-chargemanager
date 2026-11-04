@@ -7,7 +7,7 @@ The old controller did all of the solar-following itself through ChargePoint's c
 | Piece | Job |
 |---|---|
 | **OpenEVSE Eco mode** (firmware) | Follows excess solar every few seconds. It adds back the car's own draw, smooths the signal (20 s when solar rises, 600 s when it falls), enforces a minimum charge time and adds hysteresis. |
-| **`pvs6_ws_logger.py`** | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` every 5 s. This is what drives Eco mode, so **no MQTT broker is needed**. |
+| **`pvs6_relay.py`** (was `pvs6_ws_logger.py`) | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` every 5 s. This is what drives Eco mode, so **no MQTT broker is needed**. |
 | **`openevse_manager.py`** | Runs once a minute. It handles TOU tuning, overnight charging, a stale-feed failsafe, and logging to InfluxDB. |
 
 ## Why the PVS6 drives divert, not the Eagle
@@ -46,9 +46,9 @@ The ML shadow logger (`model_shadow_logger.py`, `model_run5`) isn't carried over
 
 ## OpenEVSE setup (web UI)
 
-1. **Settings → Solar divert.** Set **Divert type** to **Grid (import/export)** explicitly. In 5.1.5, the upgrade code meant to pick this automatically uses `==` instead of `=`, so it never sets it. Leave the solar/grid MQTT topics blank.
+1. **Settings → Self Production.** Set the mode to **Export** (stored as `divert_type` 1, the grid import/export reading) explicitly, not *Production*. In 5.1.5, the upgrade code meant to pick this automatically uses `==` instead of `=`, so it never sets it. Leave the solar/grid MQTT topics blank.
 2. Enable divert and set the default charge mode to **Eco**, so the charger boots into Eco mode.
-3. Leave the default smoothing settings (attack 20 s, decay 600 s, min charge time 600 s) unless you see stop/start cycling.
+3. Under **Filter Settings**, pick **Default** (attack 20 s, decay 600 s, min charge time 600 s). Ignore the preset's *Required PV power ratio*: `openevse_manager.py` sets that per TOU period and re-applies it within 5 minutes if a preset overwrites it. The smoothing times only decide when charging **starts and stops**; the charge current itself follows the unsmoothed excess on every 5 s update.
 4. Don't create schedule timers for overnight charging. They outrank Eco mode, and the overnight logic is handled by `openevse_manager.py`.
 5. Turn off the car's own charging schedule, so it charges whenever the charger allows it.
 
@@ -59,13 +59,18 @@ git clone https://github.com/dacarson/openevse-sunpower-chargemanager.git ~/open
 cd ~/openevse-sunpower-chargemanager
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
 
-sudo systemctl disable --now solar_charge_controller model_shadow_logger   # retire the ChargePoint controller
-sudo cp etc/systemd/system/*.service /etc/systemd/system/
-sudo cp etc/default/pvs6_ws_logger etc/default/openevse_manager /etc/default/
-sudoedit /etc/default/pvs6_ws_logger /etc/default/openevse_manager
+# Retire the ChargePoint controller and the old PVS6 logger.
+# pvs6_relay replaces pvs6_ws_logger; only one process should hold the PVS6 websocket.
+sudo systemctl disable --now solar_charge_controller model_shadow_logger pvs6_ws_logger
+
+sudo cp etc/systemd/system/pvs6_relay.service etc/systemd/system/openevse_manager.service /etc/systemd/system/
+sudo cp etc/default/pvs6_relay etc/default/openevse_manager /etc/default/
+sudoedit /etc/default/pvs6_relay /etc/default/openevse_manager
 sudo systemctl daemon-reload
-sudo systemctl enable --now pvs6_ws_logger openevse_manager
+sudo systemctl enable --now pvs6_relay openevse_manager
 ```
+
+When editing `/etc/default/pvs6_relay`, carry over the PVS6 IP and `--serial_number` from your existing `/etc/default/pvs6_ws_logger`. The relay accepts the same options, plus the new `--openevse_*` ones.
 
 Start `openevse_manager` with `--dry-run` for a day. It logs every decision and writes InfluxDB, but never changes the charger. `--no-control` makes it a pure logger.
 
@@ -97,7 +102,7 @@ SHOW FIELD KEYS ON eagle FROM "device_<hw_addr>"    -- look for ..._Instantaneou
 | `--dry-run`, `--no-control` | | |
 | `--log-file`, `--quiet` | | |
 
-### New `pvs6_ws_logger.py` options
+### `pvs6_relay.py` options (new since `pvs6_ws_logger.py`)
 
 | Option | Default | |
 |---|---|---|

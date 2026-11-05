@@ -21,10 +21,14 @@ The PVS6 websocket updates about every second. The Eagle relays the PG&E meter's
 | Period (PG&E) | Old controller | Now |
 |---|---|---|
 | Off-Peak (before 3 pm) | Tolerate 500 W of grid draw before stopping | `ratio = (min_power − 500 W) / min_power`, which is ≈ 0.65 at 6 A |
-| Part-Peak (3–4 pm, 9 pm–midnight) | Need `(min_A − 0.5) × 240 V` of excess | `ratio = (min_A − 0.5) / min_A`, which is ≈ 0.92 |
-| Peak (4–9 pm) | Need 2 × the minimum excess | `ratio = 1 + min_power / 1000`, which is ≈ 2.44 and keeps one minimum-charge's worth of solar (~1.44 kW) exported |
+| Part-Peak (3–4 pm, 9 pm–midnight) | Need `(min_A − 0.5) × 240 V` of excess | `1.1`: charge only from excess solar |
+| Peak (4–9 pm) | Need 2 × the minimum excess | `1.1`: charge only from excess solar |
 
-For the firmware math behind these, see the comment block in `openevse_manager.py`. One behaviour differs from the old controller: during Peak, the reserve stays exported even while charging. The old controller let the car use all the excess once it had started. You can override any of these with `--peak-pv-ratio`, `--part-peak-pv-ratio` or `--off-peak-pv-ratio`.
+At 1.1 (the firmware default), charging starts only once solar alone covers the 6 A minimum, plus 0.5 A of hysteresis. A 100 W buffer stays exported, and the current is never rounded up, so the car doesn't draw from the grid on purpose at Part-Peak or Peak rates. Once charging, it uses all the remaining excess.
+
+This deliberately drops the old controller's 2× Peak threshold. Exports earn a flat $0.02/kWh at every hour, so holding solar back at Peak only sends it to the grid for 2¢; using it in the car is worth more. The main import risk left at Peak is a passing cloud: with the Default decay (600 s), charging continues at 6 A through a dip and imports the shortfall. If your data shows that, shorten the decay rather than raising the ratio.
+
+For the firmware math, see the comment block in `openevse_manager.py`. You can override any period with `--peak-pv-ratio`, `--part-peak-pv-ratio` or `--off-peak-pv-ratio`.
 
 **Overnight charging.** During Off-Peak, if the 5-minute mean PV production is under 500 W, the script claims the charger *active* at the configured max current. It doesn't do this in `--no-overnight-months`, which defaults to June–September. At sunrise it releases the claim and Eco mode takes over again. This replaces the old "ChargePoint schedule window" check.
 
@@ -83,9 +87,9 @@ Start `openevse_manager` with `--dry-run` for a day. It logs every decision and 
 | `--influxdb-host/port/user/pass/db` | localhost / 8086 / – / – / pvs6 | |
 | `--interval` | 60 | Seconds between loops |
 | `--average-minutes` | 5 | Window for production/net means |
-| `--peak-excess-multiplier` | 2.0 | |
 | `--offpeak-grid-tolerance` | 500 | W |
-| `--peak-pv-ratio`, `--part-peak-pv-ratio`, `--off-peak-pv-ratio` | derived | Explicit overrides |
+| `--peak-pv-ratio`, `--part-peak-pv-ratio` | 1.1 / 1.1 | |
+| `--off-peak-pv-ratio` | derived from `--offpeak-grid-tolerance` | Explicit override |
 | `--no-ratio-tuning` | | Never touch `divert_PV_ratio` |
 | `--no-overnight-months` | 6 7 8 9 | Pass with no values to always allow |
 | `--overnight-periods` | off_peak | Add `part_peak` to also charge 9 pm–midnight |

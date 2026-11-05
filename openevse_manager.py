@@ -8,9 +8,11 @@ it receives the grid import/export reading (fed by pvs6_relay.py via POST /statu
 {"grid_ie": W}), adds back the car's own draw, smooths it, and sets the pilot current.
 This script runs once a minute and does what the firmware can't:
 
-  * Time-of-use tuning: rewrites `divert_PV_ratio` when the PG&E TOU period changes, so
-    Peak needs more excess solar to start/continue charging, and Off-Peak tolerates some
-    grid draw (same intent as the old --peak-excess-multiplier / --offpeak-grid-tolerance).
+  * Time-of-use tuning: rewrites `divert_PV_ratio` when the PG&E TOU period changes.
+    Off-Peak tolerates some grid draw to keep a session going (the old
+    --offpeak-grid-tolerance). Peak and Part-Peak use 1.1: charge only from excess solar,
+    with a 100 W buffer and no rounding up, so the car doesn't import at the dearest rates.
+    Exports earn a flat rate regardless of TOU, so there's no reason to hold solar back.
   * Overnight charging: during Off-Peak, when solar production is below a threshold,
     claims the EVSE "active" at full current (unless the month is a no-overnight month).
   * Stale-feed failsafe: firmware 5.1.5 keeps the last grid_ie value forever. If the feed
@@ -81,31 +83,18 @@ def ratio_for_grid_tolerance(tolerance_w: float, min_power_w: float) -> float:
     return round(min(1.0, max(0.05, (min_power_w - tolerance_w) / min_power_w)), 3)
 
 
-def ratio_for_excess_multiplier(multiplier: float, min_power_w: float) -> float:
-    """Peak: require `multiplier` x min_power of excess before starting.
-
-    Implemented as a reserve of (multiplier-1) x min_power that stays exported. Unlike the
-    old controller, the reserve also applies while charging (it is never consumed by the
-    car), which suits Peak where exports earn the most credit.
-    """
-    reserve_w = max(0.0, (multiplier - 1.0) * min_power_w)
-    return round(1.0 + reserve_w / 1000.0, 3)
-
-
-def ratio_for_part_peak(min_current: float) -> float:
-    """Part-Peak: the old controller's threshold of (min_amps - 0.5) x V."""
-    if min_current <= 0:
-        return 1.0
-    return round(max(0.05, (min_current - 0.5) / min_current), 3)
+# Peak / Part-Peak: the firmware default. Starts only when solar alone covers the minimum
+# current (+0.5 A hysteresis), keeps a 100 W buffer, and never rounds the current up.
+DEFAULT_PEAK_PV_RATIO = 1.1
+DEFAULT_PART_PEAK_PV_RATIO = 1.1
 
 
 @dataclass
 class PolicyConfig:
-    peak_excess_multiplier: float = 2.0
     offpeak_grid_tolerance: float = 500.0
-    peak_pv_ratio: float | None = None       # explicit overrides (skip the derivation)
-    part_peak_pv_ratio: float | None = None
-    off_peak_pv_ratio: float | None = None
+    peak_pv_ratio: float = DEFAULT_PEAK_PV_RATIO
+    part_peak_pv_ratio: float = DEFAULT_PART_PEAK_PV_RATIO
+    off_peak_pv_ratio: float | None = None   # None = derive from offpeak_grid_tolerance
     no_overnight_months: set = field(default_factory=lambda: set(DEFAULT_NO_OVERNIGHT_MONTHS))
     overnight_periods: set = field(default_factory=lambda: {"off_peak"})
     night_production_w: float = 500.0
@@ -141,14 +130,12 @@ def decide(inp: PolicyInputs, cfg: PolicyConfig) -> Decision:
     ratio = None
     if cfg.tune_ratio:
         if period == "peak":
-            ratio = cfg.peak_pv_ratio if cfg.peak_pv_ratio is not None else \
-                ratio_for_excess_multiplier(cfg.peak_excess_multiplier, min_power)
+            ratio = cfg.peak_pv_ratio
         elif period == "off_peak":
             ratio = cfg.off_peak_pv_ratio if cfg.off_peak_pv_ratio is not None else \
                 ratio_for_grid_tolerance(cfg.offpeak_grid_tolerance, min_power)
         else:
-            ratio = cfg.part_peak_pv_ratio if cfg.part_peak_pv_ratio is not None else \
-                ratio_for_part_peak(inp.min_current)
+            ratio = cfg.part_peak_pv_ratio
 
     if inp.divertmode != DIVERT_MODE_ECO:
         return Decision(period, None, None, None,
@@ -331,11 +318,11 @@ def parse_args(argv=None):
     p.add_argument("--average-minutes", type=int, default=5, help="Window for production/net means")
     p.add_argument("--slope-window", type=int, default=30, help="Minutes for the legacy solar slope field")
 
-    p.add_argument("--peak-excess-multiplier", type=float, default=2.0)
     p.add_argument("--offpeak-grid-tolerance", type=float, default=500.0)
-    p.add_argument("--peak-pv-ratio", type=float, default=None)
-    p.add_argument("--part-peak-pv-ratio", type=float, default=None)
-    p.add_argument("--off-peak-pv-ratio", type=float, default=None)
+    p.add_argument("--peak-pv-ratio", type=float, default=DEFAULT_PEAK_PV_RATIO)
+    p.add_argument("--part-peak-pv-ratio", type=float, default=DEFAULT_PART_PEAK_PV_RATIO)
+    p.add_argument("--off-peak-pv-ratio", type=float, default=None,
+                   help="Default: derived from --offpeak-grid-tolerance")
     p.add_argument("--no-ratio-tuning", action="store_true", help="Never change divert_PV_ratio")
     p.add_argument("--no-overnight-months", type=int, nargs="*", default=DEFAULT_NO_OVERNIGHT_MONTHS,
                    metavar="MONTH", help="Months with no overnight grid charging (empty list = always allow)")
@@ -367,7 +354,6 @@ class Manager:
         self.evse = evse
         self.influx = influx
         self.cfg = PolicyConfig(
-            peak_excess_multiplier=args.peak_excess_multiplier,
             offpeak_grid_tolerance=args.offpeak_grid_tolerance,
             peak_pv_ratio=args.peak_pv_ratio,
             part_peak_pv_ratio=args.part_peak_pv_ratio,

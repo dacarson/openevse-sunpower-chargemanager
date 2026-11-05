@@ -32,13 +32,6 @@ class RatioTests(unittest.TestCase):
         self.assertEqual(m.ratio_for_grid_tolerance(0, 1440), 1.0)
         self.assertEqual(m.ratio_for_grid_tolerance(5000, 1440), 0.05)
 
-    def test_peak_multiplier(self):
-        # 2x -> keep 1440W exported -> ratio 2.44
-        self.assertAlmostEqual(m.ratio_for_excess_multiplier(2.0, 1440), 2.44, places=3)
-        self.assertEqual(m.ratio_for_excess_multiplier(1.0, 1440), 1.0)
-
-    def test_part_peak(self):
-        self.assertAlmostEqual(m.ratio_for_part_peak(6), 0.917, places=3)
 
 
 class TouTests(unittest.TestCase):
@@ -60,10 +53,22 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(d.period, "off_peak")
         self.assertAlmostEqual(d.pv_ratio, 0.653, places=3)
 
-    def test_peak_ratio(self):
+    def test_peak_and_part_peak_ratio(self):
         d = m.decide(inputs(at(11, 17)), self.cfg)
         self.assertIsNone(d.claim)
-        self.assertAlmostEqual(d.pv_ratio, 2.44, places=3)
+        self.assertEqual(d.period, "peak")
+        self.assertEqual(d.pv_ratio, 1.1)
+        for hour in (15, 22):
+            d = m.decide(inputs(at(11, hour)), self.cfg)
+            self.assertEqual(d.period, "part_peak")
+            self.assertEqual(d.pv_ratio, 1.1)
+
+    def test_cli_defaults_tune_every_period(self):
+        args = m.parse_args(["--openevse-host", "x"])
+        self.assertEqual(args.peak_pv_ratio, 1.1)
+        self.assertEqual(args.part_peak_pv_ratio, 1.1)
+        self.assertIsNone(args.off_peak_pv_ratio)
+        self.assertFalse(hasattr(args, "peak_excess_multiplier"))
 
     def test_overnight_charging(self):
         d = m.decide(inputs(at(11, 2), production=0), self.cfg)

@@ -257,6 +257,10 @@ def openevse_fields(st: dict) -> dict:
         "voltage_v": _num(st.get("voltage")) and float(st["voltage"]),
         "power_w": _num(st.get("power")) and float(st["power"]),
         "pilot_a": _num(st.get("pilot")),
+        # What the car is actually being offered: the pilot setting only matters while the
+        # EVSE is presenting a pilot signal (connected/charging). In sleeping/disabled the
+        # pilot field still reports the configured current, but nothing is offered.
+        "offered_a": (_num(st.get("pilot")) or 0) if state in (2, 3) else 0,
         "max_current_a": _num(st.get("max_current")),
         "state": state,
         "state_name": EVSE_STATE_NAMES.get(state, str(state)) if state is not None else None,
@@ -290,7 +294,7 @@ def openevse_fields(st: dict) -> dict:
               "total_month_kwh", "total_year_kwh", "grid_ie_w"):
         if f.get(k) is not None:
             f[k] = float(f[k])
-    for k in ("pilot_a", "max_current_a", "state", "vehicle", "manual_override", "divertmode",
+    for k in ("pilot_a", "offered_a", "max_current_a", "state", "vehicle", "manual_override", "divertmode",
               "charge_rate_a", "divert_update_s", "session_elapsed_s", "gfci_count",
               "no_ground_count", "stuck_relay_count", "wifi_rssi", "free_heap"):
         if f.get(k) is not None:

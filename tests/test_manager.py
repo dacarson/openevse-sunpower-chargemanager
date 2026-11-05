@@ -123,6 +123,13 @@ class FieldTests(unittest.TestCase):
         self.assertFalse(f["fault"])
         self.assertTrue(m.openevse_fields({"state": 6})["fault"])
 
+    def test_offered_current(self):
+        self.assertEqual(m.openevse_fields({"pilot": 40, "state": 3})["offered_a"], 40)
+        self.assertEqual(m.openevse_fields({"pilot": 40, "state": 2})["offered_a"], 40)
+        self.assertEqual(m.openevse_fields({"pilot": 40, "state": 254})["offered_a"], 0)
+        self.assertEqual(m.openevse_fields({"pilot": 40, "state": 255})["offered_a"], 0)
+        self.assertEqual(m.openevse_fields({"pilot": 40, "state": 1})["offered_a"], 0)
+
     def test_line_protocol(self):
         s = m.format_fields({"a": 1, "b": 1.5, "c": "x y", "d": True, "e": None, "f": float("nan")})
         self.assertEqual(s, 'a=1i,b=1.5,c="x y",d=true')

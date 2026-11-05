@@ -10,10 +10,6 @@ The old controller did all of the solar-following itself through ChargePoint's c
 | **`pvs6_relay.py`** (was `pvs6_ws_logger.py`) | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` every 5 s. This is what drives Eco mode, so **no MQTT broker is needed**. |
 | **`openevse_manager.py`** | Runs once a minute. It handles TOU tuning, overnight charging, a stale-feed failsafe, and logging to InfluxDB. |
 
-## Why the PVS6 drives divert, not the Eagle
-
-The PVS6 websocket updates about every second. The Eagle relays the PG&E meter's Zigbee pushes and has to be polled gently (10–30 s), so its readings are often 10–60 s old by the time they're used. Eco mode reacts to every update, and a lagging feed makes it over- or under-shoot. The PVS6 consumption CTs aren't revenue-grade, but an error of a percent or two is far smaller than OpenEVSE's 1 A (~240 W) step. The Eagle data you already log to InfluxDB is the reference for checking CT drift, e.g. by comparing it with `sunpower_power.net_p` in Grafana.
-
 ## What `openevse_manager.py` does
 
 **TOU tuning of `divert_PV_ratio`** (it writes `/config` only when the TOU period changes):
@@ -63,18 +59,12 @@ git clone https://github.com/dacarson/openevse-sunpower-chargemanager.git ~/open
 cd ~/openevse-sunpower-chargemanager
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
 
-# Retire the ChargePoint controller and the old PVS6 logger.
-# pvs6_relay replaces pvs6_ws_logger; only one process should hold the PVS6 websocket.
-sudo systemctl disable --now solar_charge_controller model_shadow_logger pvs6_ws_logger
-
 sudo cp etc/systemd/system/pvs6_relay.service etc/systemd/system/openevse_manager.service /etc/systemd/system/
 sudo cp etc/default/pvs6_relay etc/default/openevse_manager /etc/default/
 sudoedit /etc/default/pvs6_relay /etc/default/openevse_manager
 sudo systemctl daemon-reload
 sudo systemctl enable --now pvs6_relay openevse_manager
 ```
-
-When editing `/etc/default/pvs6_relay`, carry over the PVS6 IP and `--serial_number` from your existing `/etc/default/pvs6_ws_logger`. The relay accepts the same options, plus the new `--openevse_*` ones.
 
 Start `openevse_manager` with `--dry-run` for a day. It logs every decision and writes InfluxDB, but never changes the charger. `--no-control` makes it a pure logger.
 

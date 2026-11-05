@@ -55,18 +55,12 @@ git clone https://github.com/dacarson/openevse-sunpower-chargemanager.git ~/open
 cd ~/openevse-sunpower-chargemanager
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
 
-# Retire the ChargePoint controller and the old PVS6 logger.
-# pvs6_relay replaces pvs6_ws_logger; only one process should hold the PVS6 websocket.
-sudo systemctl disable --now solar_charge_controller model_shadow_logger pvs6_ws_logger
-
 sudo cp etc/systemd/system/pvs6_relay.service etc/systemd/system/openevse_manager.service /etc/systemd/system/
 sudo cp etc/default/pvs6_relay etc/default/openevse_manager /etc/default/
 sudoedit /etc/default/pvs6_relay /etc/default/openevse_manager
 sudo systemctl daemon-reload
 sudo systemctl enable --now pvs6_relay openevse_manager
 ```
-
-When editing `/etc/default/pvs6_relay`, carry over the PVS6 IP and `--serial_number` from your existing `/etc/default/pvs6_ws_logger`. The relay accepts the same options, plus the new `--openevse_*` ones.
 
 Start `openevse_manager` with `--dry-run` for a day. It logs every decision and writes InfluxDB, but never changes the charger. `--no-control` makes it a pure logger.
 

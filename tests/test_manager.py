@@ -130,6 +130,23 @@ class FieldTests(unittest.TestCase):
         self.assertEqual(m.openevse_fields({"pilot": 40, "state": 255})["offered_a"], 0)
         self.assertEqual(m.openevse_fields({"pilot": 40, "state": 1})["offered_a"], 0)
 
+    def test_health_fields(self):
+        f = m.openevse_fields({"uptime": 1453, "reset_reason_name": "sw", "comm_sent": 1702,
+                               "comm_success": 1617, "total_switches": 10, "heap_min": 9476,
+                               "heap_largest_min": 24564, "service_level": 2,
+                               "limit": False, "boost": False})
+        self.assertEqual(f["uptime_s"], 1453)
+        self.assertEqual(f["reset_reason"], "sw")
+        self.assertEqual(f["rapi_failed"], 85)
+        self.assertIsInstance(f["rapi_failed"], int)
+        self.assertEqual(f["relay_switches"], 10)
+        self.assertEqual(f["heap_min"], 9476)
+        self.assertEqual(f["heap_largest_min"], 24564)
+        self.assertEqual(f["service_level"], 2)
+        self.assertIs(f["limit"], False)
+        self.assertIs(f["boost"], False)
+        self.assertNotIn("rapi_failed", m.openevse_fields({"comm_sent": 5}))
+
     def test_line_protocol(self):
         s = m.format_fields({"a": 1, "b": 1.5, "c": "x y", "d": True, "e": None, "f": float("nan")})
         self.assertEqual(s, 'a=1i,b=1.5,c="x y",d=true')

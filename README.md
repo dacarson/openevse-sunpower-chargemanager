@@ -38,7 +38,7 @@ For the firmware math, see the comment block in `openevse_manager.py`. You can o
 
 | Measurement | Fields |
 |---|---|
-| `openevse` | `current_a`, `voltage_v`, `power_w`, `pilot_a`, `state`, `state_name`, `fault`, `vehicle`, `manual_override`, `divertmode`, `divert_active`, `charge_rate_a`, `divert_update_s`, `grid_ie_w`, `temp_c`, `session_energy_wh`, `total_energy_kwh`, `total_day/week/month/year_kwh`, fault counters, `wifi_rssi`, … |
+| `openevse` | `current_a`, `voltage_v`, `power_w`, `pilot_a`, `state`, `state_name`, `fault`, `vehicle`, `manual_override`, `divertmode`, `divert_active`, `charge_rate_a`, `divert_update_s`, `grid_ie_w`, `temp_c`, `session_energy_wh`, `total_energy_kwh`, `total_day/week/month/year_kwh`, fault counters, `wifi_rssi`, `uptime_s`, `reset_reason`, `rapi_sent/success/failed`, `relay_switches`, `heap_min`, `heap_largest_min`, `service_level`, `limit`, `boost`, … |
 | `openevse_policy` | `tou_period`, `pv_ratio`, `claim`, `reason`, `production_w`, `net_w`, `feed_age_s` |
 | `solar_charge_control` | Same fields as the old controller, so existing Grafana panels keep working: `excess_solar_watts`, `charging_power_watts`, `target_amperage`, `current_amperage`, `solar_slope_w_per_s` |
 

@@ -287,7 +287,21 @@ def openevse_fields(st: dict) -> dict:
         "stuck_relay_count": _num(st.get("stuckcount")),
         "wifi_rssi": _num(st.get("srssi")),
         "free_heap": _num(st.get("free_heap")),
+        "heap_min": _num(st.get("heap_min")),
+        "heap_largest_min": _num(st.get("heap_largest_min")),
+        # reboot detection
+        "uptime_s": _num(st.get("uptime")),
+        "reset_reason": st.get("reset_reason_name") if isinstance(st.get("reset_reason_name"), str) else None,
+        # RAPI link health (WiFi module <-> EVSE controller), cumulative since boot
+        "rapi_sent": _num(st.get("comm_sent")),
+        "rapi_success": _num(st.get("comm_success")),
+        "relay_switches": _num(st.get("total_switches")),
+        "service_level": _num(st.get("service_level")),
+        "limit": bool(st["limit"]) if "limit" in st else None,
+        "boost": bool(st["boost"]) if "boost" in st else None,
     }
+    if f["rapi_sent"] is not None and f["rapi_success"] is not None:
+        f["rapi_failed"] = f["rapi_sent"] - f["rapi_success"]
     # keep int/float types stable across writes (InfluxDB rejects type changes per field)
     for k in ("voltage_v", "power_w", "temp_c", "temp_max_c", "current_a",
               "session_energy_wh", "total_energy_kwh", "total_day_kwh", "total_week_kwh",
@@ -296,7 +310,9 @@ def openevse_fields(st: dict) -> dict:
             f[k] = float(f[k])
     for k in ("pilot_a", "offered_a", "max_current_a", "state", "vehicle", "manual_override", "divertmode",
               "charge_rate_a", "divert_update_s", "session_elapsed_s", "gfci_count",
-              "no_ground_count", "stuck_relay_count", "wifi_rssi", "free_heap"):
+              "no_ground_count", "stuck_relay_count", "wifi_rssi", "free_heap", "heap_min",
+              "heap_largest_min", "uptime_s", "rapi_sent", "rapi_success", "rapi_failed",
+              "relay_switches", "service_level"):
         if f.get(k) is not None:
             f[k] = int(f[k])
     return {k: v for k, v in f.items() if v is not None}

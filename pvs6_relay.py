@@ -43,7 +43,8 @@ feeder = None
 class OpenEVSEGridFeeder:
     """
     Pushes the PVS6 grid reading (net_p, kW; positive = importing, negative = exporting)
-    to OpenEVSE as POST /status {"grid_ie": W}, which drives the firmware's solar divert.
+    to OpenEVSE as POST /status {"grid_ie": W, "shaper_live_pwr": W}, which drives the
+    firmware's solar divert and current shaper.
 
     Samples are averaged over each interval and sent from a background thread so a slow
     or offline charger never blocks the websocket. If no fresh samples arrive, nothing is

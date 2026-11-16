@@ -7,7 +7,7 @@ The old controller did all of the solar-following itself through ChargePoint's c
 | Piece | Job |
 |---|---|
 | **OpenEVSE Eco mode** (firmware) | Follows excess solar every few seconds. It adds back the car's own draw, smooths the signal (20 s when solar rises, 600 s when it falls), enforces a minimum charge time and adds hysteresis. |
-| **`pvs6_relay.py`** (was `pvs6_ws_logger.py`) | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` every 5 s. This is what drives Eco mode, so **no MQTT broker is needed**. |
+| **`pvs6_relay.py`** (was `pvs6_ws_logger.py`) | As before, streams the PVS6 to InfluxDB. **New:** it also posts the grid reading (`net_p`) to the charger as `grid_ie` and `shaper_live_pwr` every 5 s. This is what drives Eco mode and the current shaper, so **no MQTT broker is needed**. |
 | **`openevse_manager.py`** | Runs once a minute. It handles TOU tuning, overnight charging, a stale-feed failsafe, and logging to InfluxDB. |
 
 ## What `openevse_manager.py` does

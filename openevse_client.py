@@ -9,7 +9,8 @@ the callers rely on:
                            `divert_update` = seconds since the last solar/grid_ie update.
 * POST /status          -> {"grid_ie": W} feeds solar divert (positive = importing,
                            negative = exporting) and immediately re-runs the divert
-                           calculation. No MQTT broker is required.
+                           calculation. {"shaper_live_pwr": W} feeds the current shaper;
+                           both are sent together. No MQTT broker is required.
 * GET/POST /config      -> settings. POST only writes flash when a value changes.
 * GET/POST/DELETE /claims/<client_id>
                         -> an external "claim" on the EVSE state/current. POSTed
@@ -92,7 +93,9 @@ class OpenEVSE:
         r.raise_for_status()
 
     def post_grid_ie(self, watts: float) -> None:
-        r = self.session.post(self._url("/status"), json={"grid_ie": int(round(watts))},
+        """Feed the grid reading to both solar divert (grid_ie) and the shaper (shaper_live_pwr)."""
+        w = int(round(watts))
+        r = self.session.post(self._url("/status"), json={"grid_ie": w, "shaper_live_pwr": w},
                               timeout=self.timeout)
         r.raise_for_status()
 

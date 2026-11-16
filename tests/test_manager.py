@@ -162,6 +162,7 @@ class FakeEVSE:
                        "max_current_soft": 48}
         self.claims = {}
         self.grid_ie = []
+        self.shaper_live_pwr = []
         self.config_posts = []
 
 
@@ -197,7 +198,9 @@ def make_handler(fake):
         def do_POST(self):
             body = self._body()
             if self.path == "/status":
-                fake.grid_ie.append(json.loads(body)["grid_ie"])
+                v = json.loads(body)
+                fake.grid_ie.append(v["grid_ie"])
+                fake.shaper_live_pwr.append(v["shaper_live_pwr"])
                 return self._send(200, {"msg": "done"})
             if self.path == "/config":
                 v = json.loads(body)
@@ -308,6 +311,7 @@ class IntegrationTests(unittest.TestCase):
         while not self.fake.grid_ie and time.time() < deadline:
             time.sleep(0.05)
         self.assertEqual(self.fake.grid_ie[0], -3000)
+        self.assertEqual(self.fake.shaper_live_pwr[0], -3000)
 
 
 class RelayLoggingIndependenceTests(unittest.TestCase):
